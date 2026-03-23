@@ -43,12 +43,24 @@ All datasets are JSONL files in `data/`:
 
 | Dataset | Rows | Schema |
 |---------|------|--------|
-| **contents** | 250 | `{id, url, expected_markdown, title, tags}` |
+| **contents** | 250 | `{id, url, title, tags}` |
 | **highlights** | 250 | `{id, query, expected_answer, citation_url, citation_excerpt}` |
 | **rag** | 307 | `{id, query, expected_answer, source_url, citation_excerpt}` |
 | **e2e** | 33 | `{id, slug, repo, repo_url, release_tag, task_description, test_patch, metadata}` |
 
 > **Note**: Some URLs have been excluded from the contents and highlights datasets due to licensing restrictions.
+
+### Golden markdown (contents eval)
+
+The contents dataset ships with URLs only — the golden markdown is not included for licensing reasons. To run the contents eval, you need to generate `data/contents/golden_markdown.jsonl` yourself. Each row should have the shape `{id, expected_markdown}`.
+
+We built the golden references using the following pipeline:
+
+1. **Render** each URL in a cloud browser (e.g. [Browserbase](https://browserbase.com/)) with full JS execution, lazy loading, and dynamic rendering
+2. **Capture** full-page screenshots and extract the HTML DOM
+3. **Feed** screenshots + DOM into a multimodal language model to produce markdown faithful to the rendered page
+
+See the [blog post](https://exa.ai/blog/web-code) for more details on this approach.
 
 ## Output
 

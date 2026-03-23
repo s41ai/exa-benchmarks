@@ -22,6 +22,7 @@ from src.metrics import compute_contents_metrics
 console = Console()
 logger = logging.getLogger(__name__)
 DATA_DIR = Path(__file__).parent.parent / "data"
+GOLDEN_FILE = DATA_DIR / "contents" / "golden_markdown.jsonl"
 
 
 def load_queries(limit: int | None = None) -> list[dict]:
@@ -35,6 +36,19 @@ def load_queries(limit: int | None = None) -> list[dict]:
                 continue
             queries.append(json.loads(line))
     return queries[:limit] if limit else queries
+
+
+def _load_golden_markdown() -> dict[str, str]:
+    if not GOLDEN_FILE.exists():
+        return {}
+    golden = {}
+    with open(GOLDEN_FILE) as f:
+        for line in f:
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            golden[row["id"]] = row["expected_markdown"]
+    return golden
 
 
 def _build_exa_searcher() -> ExaSearcher:
@@ -73,6 +87,22 @@ async def run(
         console.print("[red]No queries found. Ensure data/contents/code_contents.jsonl exists.[/red]")
         return
 
+    golden_markdown = _load_golden_markdown()
+    if not golden_markdown:
+        console.print(
+            "[red]Golden markdown not found.[/red]\n"
+            f"  Expected file: [bold]{GOLDEN_FILE}[/bold]\n"
+            "  The golden markdown is not distributed with the dataset for licensing reasons.\n"
+            "  Generate it by fetching each URL in code_contents.jsonl and writing a JSONL\n"
+            '  with {id, expected_markdown} rows to the path above.'
+        )
+        return
+
+    missing = [q["id"] for q in queries if q["id"] not in golden_markdown]
+    if missing:
+        console.print(f"[yellow]Warning: {len(missing)} queries have no golden markdown and will be skipped.[/yellow]")
+        queries = [q for q in queries if q["id"] in golden_markdown]
+
     searchers = [s for name in searcher_names if (s := build_searcher(name))]
     if not searchers:
         console.print("[red]No searchers available.[/red]")
@@ -101,7 +131,7 @@ async def run(
             async def process(q: dict) -> dict:
                 async with semaphore:
                     url = q.get("url", "")
-                    golden = q.get("expected_markdown", "")
+                    golden = golden_markdown.get(q["id"], "")
                     start = time.time()
                     try:
                         results = await searcher.extract(url)
