@@ -69,12 +69,33 @@ class SuperCarlSearcher(Searcher):
         }
         if self.delegate_user_id:
             payload["delegate_user_id"] = self.delegate_user_id
+        if self.include_profile_text:
+            payload["include_evidence_text"] = True
+            payload["evidence_text_mode"] = self.profile_text_mode
+            payload["evidence_posts_limit"] = self.profile_text_posts_limit
 
         data = await self._request("POST", "/api/v1/search/people", json=payload)
         users = data.get("users", [])
-        profile_texts = await self._load_profile_texts(users) if self.include_profile_text else {}
+        profile_texts = self._collect_inline_profile_texts(users) if self.include_profile_text else {}
+        if self.include_profile_text:
+            missing_users = [
+                user
+                for user in users
+                if _safe_text(user.get("id")) and _safe_text(user.get("id")) not in profile_texts
+            ]
+            if missing_users:
+                profile_texts.update(await self._load_profile_texts(missing_users))
 
         return [self._build_result(user, profile_texts.get(_safe_text(user.get("id")))) for user in users]
+
+    def _collect_inline_profile_texts(self, users: list[dict[str, Any]]) -> dict[str, str]:
+        profile_texts: dict[str, str] = {}
+        for user in users:
+            user_id = _safe_text(user.get("id"))
+            evidence_text = _safe_text(user.get("evidence_text"))
+            if user_id and evidence_text:
+                profile_texts[user_id] = evidence_text
+        return profile_texts
 
     async def _load_profile_texts(self, users: list[dict[str, Any]]) -> dict[str, str]:
         user_ids = [_safe_text(user.get("id")) for user in users if _safe_text(user.get("id"))]

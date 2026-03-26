@@ -27,7 +27,8 @@ SUPERCARL_BASE_URL=http://localhost:5050 \
 uv run --env-file ../.env pbench --searchers supercarl --query-id people_role_0001
 ```
 
-Optional richer grading context:
+Optional richer grading context. This first uses inline `evidence_text` from
+`/api/v1/search/people`, then falls back to `/api/v1/profiles/:id/text` only if needed:
 
 ```bash
 SUPERCARL_INCLUDE_PROFILE_TEXT=true \
