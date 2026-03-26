@@ -35,12 +35,13 @@ class Query:
 @dataclass
 class BenchmarkConfig:
     limit: int | None = None
+    query_id: str | None = None
     num_results: int = 10
     output_file: str | None = None
     enrich_exa_contents: bool = False
 
 
-def load_queries(limit: int | None = None) -> list[Query]:
+def load_queries(limit: int | None = None, query_id: str | None = None) -> list[Query]:
     filepath = DATA_DIR / "people" / "simple_people_search.jsonl"
     if not filepath.exists():
         return []
@@ -59,6 +60,9 @@ def load_queries(limit: int | None = None) -> list[Query]:
                     metadata=data.get("metadata", {}),
                 )
             )
+
+    if query_id:
+        queries = [query for query in queries if query.query_id == query_id]
 
     return queries[:limit] if limit else queries
 
@@ -151,7 +155,7 @@ class Benchmark:
 
     async def run(self, config: BenchmarkConfig | None = None) -> dict[str, Any]:
         config = config or BenchmarkConfig()
-        queries = load_queries(config.limit)
+        queries = load_queries(limit=config.limit, query_id=config.query_id)
 
         if not queries:
             console.print("[red]No queries found![/red]")
@@ -164,6 +168,7 @@ class Benchmark:
             timestamp=datetime.now().isoformat(),
             config={
                 "limit": config.limit,
+                "query_id": config.query_id,
                 "num_results": config.num_results,
                 "enrich_exa_contents": config.enrich_exa_contents,
             },
@@ -174,6 +179,8 @@ class Benchmark:
         console.print(f"  Run ID: {run_id}")
         console.print(f"  Searchers: {[s.name for s in self.searchers]}")
         console.print(f"  Queries: {len(queries)}")
+        if config.query_id:
+            console.print(f"  Query ID: {config.query_id}")
         console.print(f"  Exa enrichment: {'on' if config.enrich_exa_contents else 'off'}")
         console.print()
 
@@ -263,6 +270,10 @@ def _build_searcher(name: str) -> Searcher | None:
             from shared.searchers import ParallelSearcher
 
             return ParallelSearcher(source_policy={"include_domains": ["linkedin.com"]})
+        if name == "supercarl":
+            from shared.searchers import SuperCarlSearcher
+
+            return SuperCarlSearcher()
     except (ValueError, ImportError) as e:
         console.print(f"[yellow]{name}: {e}[/yellow]")
     return None
@@ -281,6 +292,7 @@ def main():
 
     parser = argparse.ArgumentParser(description="People Search Benchmark")
     parser.add_argument("--limit", type=int, help="Limit number of queries")
+    parser.add_argument("--query-id", help="Run a single query by query_id")
     parser.add_argument("--num-results", type=int, default=10, help="Results per query")
     parser.add_argument("--output", "-o", help="Output file for results JSON")
     parser.add_argument(
@@ -300,6 +312,7 @@ def main():
 
     config = BenchmarkConfig(
         limit=args.limit,
+        query_id=args.query_id,
         num_results=args.num_results,
         output_file=args.output,
         enrich_exa_contents=args.enrich_exa_contents,

@@ -102,6 +102,17 @@ export OPENAI_API_KEY="your-key"
 pbench --limit 50
 ```
 
+Run the people benchmark against Super Carl:
+
+```bash
+cd simple-people-benchmark
+uv sync
+
+uv run --env-file ../.env pbench --searchers supercarl --query-id people_role_0001
+SUPERCARL_BASE_URL=http://localhost:5050 \
+uv run --env-file ../.env pbench --searchers supercarl --query-id people_role_0001
+```
+
 ### Company Benchmark
 
 ```bash
