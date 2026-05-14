@@ -140,7 +140,7 @@ class Benchmark:
         task_id: TaskID,
     ) -> list[dict]:
         grades = []
-        semaphore = asyncio.Semaphore(5)
+        semaphore = asyncio.Semaphore(int(os.getenv("PBENCH_SEARCHER_CONCURRENCY", "5")))
 
         async def process(q: Query):
             async with semaphore:
