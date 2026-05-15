@@ -39,9 +39,16 @@ class BenchmarkConfig:
     num_results: int = 10
     output_file: str | None = None
     enrich_exa_contents: bool = False
+    sample: int | None = None
+    seed: int | None = None
 
 
-def load_queries(limit: int | None = None, query_id: str | None = None) -> list[Query]:
+def load_queries(
+    limit: int | None = None,
+    query_id: str | None = None,
+    sample: int | None = None,
+    seed: int | None = None,
+) -> list[Query]:
     filepath = DATA_DIR / "people" / "simple_people_search.jsonl"
     if not filepath.exists():
         return []
@@ -63,6 +70,12 @@ def load_queries(limit: int | None = None, query_id: str | None = None) -> list[
 
     if query_id:
         queries = [query for query in queries if query.query_id == query_id]
+
+    if sample and sample < len(queries):
+        import random
+
+        rng = random.Random(seed)
+        queries = sorted(rng.sample(queries, sample), key=lambda q: q.query_id)
 
     return queries[:limit] if limit else queries
 
@@ -155,7 +168,12 @@ class Benchmark:
 
     async def run(self, config: BenchmarkConfig | None = None) -> dict[str, Any]:
         config = config or BenchmarkConfig()
-        queries = load_queries(limit=config.limit, query_id=config.query_id)
+        queries = load_queries(
+            limit=config.limit,
+            query_id=config.query_id,
+            sample=config.sample,
+            seed=config.seed,
+        )
 
         if not queries:
             console.print("[red]No queries found![/red]")
@@ -301,6 +319,12 @@ def main():
     parser.add_argument(
         "--searchers", nargs="+", help="Searchers to use (default: exa, brave, parallel)"
     )
+    parser.add_argument(
+        "--sample", type=int, help="Run a deterministic random subset of N queries (use with --seed)"
+    )
+    parser.add_argument(
+        "--seed", type=int, help="Seed for the --sample subset (deterministic when set)"
+    )
     args = parser.parse_args()
 
     searcher_names = args.searchers or ["exa", "brave", "parallel"]
@@ -316,6 +340,8 @@ def main():
         num_results=args.num_results,
         output_file=args.output,
         enrich_exa_contents=args.enrich_exa_contents,
+        sample=args.sample,
+        seed=args.seed,
     )
     asyncio.run(Benchmark(searchers).run(config))
 
