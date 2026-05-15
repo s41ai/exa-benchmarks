@@ -151,7 +151,7 @@ class SuperCarlSearcher(Searcher):
         if headline:
             title = f"{name} - {headline}"
 
-        text = profile_text or self._build_inline_text(
+        inline_text = self._build_inline_text(
             name=name,
             headline=headline,
             current_title=current_title,
@@ -160,6 +160,9 @@ class SuperCarlSearcher(Searcher):
             bio=bio,
             match_reasons=user.get("match_reasons"),
         )
+        text = inline_text
+        if profile_text:
+            text = f"{inline_text}\n\nProfile evidence:\n{profile_text}"
 
         return SearchResult(
             url=profile_url,
