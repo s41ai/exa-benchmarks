@@ -133,6 +133,9 @@ class Benchmark:
         self._run_log: RunLog | None = None
 
     async def _grade(self, query: Query, results: list[SearchResult]) -> list[dict]:
+        if not results:
+            return [{"query_id": query.query_id, "rank": 1, "is_match": 0}]
+
         async def grade_one(rank: int, r: SearchResult) -> dict:
             async with self._grade_semaphore:
                 g = await self.grader.grade(query.text, r)
