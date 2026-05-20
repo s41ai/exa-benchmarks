@@ -9,6 +9,7 @@ from .base import Searcher, SearchResult
 DEFAULT_BASE_URL = "https://api.supercarl.ai"
 DEFAULT_PROFILE_TEXT_MODE = "full"
 DEFAULT_PROFILE_TEXT_POSTS_LIMIT = 5
+VALID_NETWORK_FILTER_MODES = {"boost", "filter", "ignore", "connected_to"}
 
 
 def _env_flag(name: str, default: bool) -> bool:
@@ -36,6 +37,7 @@ class SuperCarlSearcher(Searcher):
         include_profile_text: bool | None = None,
         profile_text_mode: str | None = None,
         profile_text_posts_limit: int | None = None,
+        network_filter_mode: str | None = None,
     ):
         self.api_key = api_key or os.getenv("SUPERCARL_API_KEY")
         if not self.api_key:
@@ -59,6 +61,16 @@ class SuperCarlSearcher(Searcher):
                 str(DEFAULT_PROFILE_TEXT_POSTS_LIMIT),
             )
         )
+        configured_network_filter_mode = (
+            network_filter_mode
+            or os.getenv("SUPERCARL_NETWORK_FILTER_MODE")
+            or "ignore"
+        ).strip().lower()
+        self.network_filter_mode = (
+            configured_network_filter_mode
+            if configured_network_filter_mode in VALID_NETWORK_FILTER_MODES
+            else None
+        )
         self._client = httpx.AsyncClient(timeout=120.0)
 
     async def search(self, query: str, num_results: int = 10) -> list[SearchResult]:
@@ -69,6 +81,8 @@ class SuperCarlSearcher(Searcher):
         }
         if self.delegate_user_id:
             payload["delegate_user_id"] = self.delegate_user_id
+        if self.network_filter_mode:
+            payload["filters"] = {"advanced": {"network_filter_mode": self.network_filter_mode}}
         if self.include_profile_text:
             payload["include_evidence_text"] = True
             payload["evidence_text_mode"] = self.profile_text_mode
