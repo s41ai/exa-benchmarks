@@ -34,3 +34,31 @@ Optional richer grading context. This first uses inline `evidence_text` from
 SUPERCARL_INCLUDE_PROFILE_TEXT=true \
 uv run --env-file ../.env pbench --searchers supercarl --query-id people_role_0001
 ```
+
+For full production runs, keep secrets in `../.env` and only pass non-secret knobs inline.
+`../.env` should provide `OPENAI_API_KEY`, `SUPERCARL_API_KEY`, and any needed
+`SUPERCARL_DELEGATE_USER_ID`.
+
+```bash
+PBENCH_SEARCHER_CONCURRENCY=8 \
+PBENCH_GRADING_CONCURRENCY=50 \
+SUPERCARL_NETWORK_FILTER_MODE=ignore \
+SUPERCARL_INCLUDE_PROFILE_TEXT=true \
+uv run --env-file ../.env pbench --searchers supercarl --output runs/supercarl-prod-full.json
+```
+
+`PBENCH_SEARCHER_CONCURRENCY` limits concurrent SuperCarl search requests.
+`PBENCH_GRADING_CONCURRENCY` or `--grading-concurrency` limits concurrent OpenAI grading requests.
+
+For deterministic subset debugging, pin both `--sample` and `--seed`:
+
+```bash
+PBENCH_SEARCHER_CONCURRENCY=1 \
+PBENCH_GRADING_CONCURRENCY=5 \
+SUPERCARL_NETWORK_FILTER_MODE=ignore \
+SUPERCARL_INCLUDE_PROFILE_TEXT=true \
+uv run --env-file ../.env pbench --searchers supercarl \
+  --sample 50 \
+  --seed 20260527 \
+  --output runs/supercarl-prod-sample-50-seed-20260527.json
+```

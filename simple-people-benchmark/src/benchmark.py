@@ -41,6 +41,27 @@ class BenchmarkConfig:
     enrich_exa_contents: bool = False
     sample: int | None = None
     seed: int | None = None
+    searcher_concurrency: int = 5
+    grading_concurrency: int = 50
+
+
+def _positive_int(value: str) -> int:
+    parsed = int(value)
+    if parsed < 1:
+        raise argparse.ArgumentTypeError("must be >= 1")
+    return parsed
+
+
+def _env_positive_int(name: str, default: int) -> int:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    try:
+        return _positive_int(value)
+    except argparse.ArgumentTypeError as exc:
+        raise ValueError(f"{name} must be >= 1") from exc
+    except ValueError as exc:
+        raise ValueError(f"{name} must be an integer") from exc
 
 
 def load_queries(
@@ -156,7 +177,7 @@ class Benchmark:
         task_id: TaskID,
     ) -> list[dict]:
         grades = []
-        semaphore = asyncio.Semaphore(int(os.getenv("PBENCH_SEARCHER_CONCURRENCY", "5")))
+        semaphore = asyncio.Semaphore(config.searcher_concurrency)
 
         async def process(q: Query):
             async with semaphore:
@@ -192,6 +213,10 @@ class Benchmark:
                 "query_id": config.query_id,
                 "num_results": config.num_results,
                 "enrich_exa_contents": config.enrich_exa_contents,
+                "sample": config.sample,
+                "seed": config.seed,
+                "searcher_concurrency": config.searcher_concurrency,
+                "grading_concurrency": config.grading_concurrency,
             },
             searchers=[s.name for s in self.searchers],
         )
@@ -203,6 +228,8 @@ class Benchmark:
         if config.query_id:
             console.print(f"  Query ID: {config.query_id}")
         console.print(f"  Exa enrichment: {'on' if config.enrich_exa_contents else 'off'}")
+        console.print(f"  Searcher concurrency: {config.searcher_concurrency}")
+        console.print(f"  Grading concurrency: {config.grading_concurrency}")
         console.print()
 
         results: dict[str, Any] = {"config": {"limit": config.limit}, "searchers": {}}
@@ -311,6 +338,13 @@ def main():
         )
         return
 
+    try:
+        default_searcher_concurrency = _env_positive_int("PBENCH_SEARCHER_CONCURRENCY", 5)
+        default_grading_concurrency = _env_positive_int("PBENCH_GRADING_CONCURRENCY", 50)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        return
+
     parser = argparse.ArgumentParser(description="People Search Benchmark")
     parser.add_argument("--limit", type=int, help="Limit number of queries")
     parser.add_argument("--query-id", help="Run a single query by query_id")
@@ -327,6 +361,20 @@ def main():
     )
     parser.add_argument(
         "--seed", type=int, help="Seed for the --sample subset (deterministic when set)"
+    )
+    parser.add_argument(
+        "--searcher-concurrency",
+        type=_positive_int,
+        default=default_searcher_concurrency,
+        help="Concurrent search requests per searcher "
+        "(default: PBENCH_SEARCHER_CONCURRENCY or 5)",
+    )
+    parser.add_argument(
+        "--grading-concurrency",
+        type=_positive_int,
+        default=default_grading_concurrency,
+        help="Concurrent grading requests "
+        "(default: PBENCH_GRADING_CONCURRENCY or 50)",
     )
     args = parser.parse_args()
 
@@ -345,8 +393,10 @@ def main():
         enrich_exa_contents=args.enrich_exa_contents,
         sample=args.sample,
         seed=args.seed,
+        searcher_concurrency=args.searcher_concurrency,
+        grading_concurrency=args.grading_concurrency,
     )
-    asyncio.run(Benchmark(searchers).run(config))
+    asyncio.run(Benchmark(searchers, grading_concurrency=args.grading_concurrency).run(config))
 
 
 if __name__ == "__main__":

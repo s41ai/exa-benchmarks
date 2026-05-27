@@ -113,6 +113,19 @@ SUPERCARL_BASE_URL=http://localhost:5050 \
 uv run --env-file ../.env pbench --searchers supercarl --query-id people_role_0001
 ```
 
+For a full production run, keep secrets in `../.env` and pass only non-secret controls inline:
+
+```bash
+cd simple-people-benchmark
+uv sync
+
+PBENCH_SEARCHER_CONCURRENCY=8 \
+PBENCH_GRADING_CONCURRENCY=50 \
+SUPERCARL_NETWORK_FILTER_MODE=ignore \
+SUPERCARL_INCLUDE_PROFILE_TEXT=true \
+uv run --env-file ../.env pbench --searchers supercarl --output runs/supercarl-prod-full.json
+```
+
 ### Company Benchmark
 
 ```bash

@@ -40,7 +40,9 @@ htmlcov/
 
 # Results
 *.json
+*.jsonl
 !data/**/*.jsonl
+runs/
 
 # OS
 .DS_Store
@@ -49,4 +51,3 @@ Thumbs.db
 # uv
 .uv/
 uv.lock
-

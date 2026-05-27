@@ -19,11 +19,18 @@ def _env_flag(name: str, default: bool) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _repair_unicode_surrogates(text: str) -> str:
+    try:
+        text.encode("utf-8")
+    except UnicodeEncodeError:
+        return text.encode("utf-16", "surrogatepass").decode("utf-16", "replace")
+    return text
+
+
 def _safe_text(value: Any) -> str:
     if value is None:
         return ""
-    text = str(value).strip()
-    return text
+    return _repair_unicode_surrogates(str(value).strip())
 
 
 class SuperCarlSearcher(Searcher):
@@ -149,6 +156,7 @@ class SuperCarlSearcher(Searcher):
         return _safe_text(text_payload) or None
 
     def _build_result(self, user: dict[str, Any], profile_text: str | None) -> SearchResult:
+        user_id = _safe_text(user.get("id"))
         name = _safe_text(user.get("name")) or "Unknown person"
         headline = _safe_text(
             user.get("headline") or user.get("current_title") or user.get("company")
@@ -159,11 +167,14 @@ class SuperCarlSearcher(Searcher):
         bio = _safe_text(user.get("bio"))
         linkedin_url = _safe_text(user.get("linkedin_url"))
         supercarl_url = _safe_text(user.get("supercarl_url"))
-        profile_url = linkedin_url or supercarl_url or f"{self.base_url}/api/v1/profiles/{user.get('id')}"
+        profile_url = _safe_text(
+            linkedin_url or supercarl_url or f"{self.base_url}/api/v1/profiles/{user_id}"
+        )
 
         title = name
         if headline:
             title = f"{name} - {headline}"
+        title = _safe_text(title)
 
         inline_text = self._build_inline_text(
             name=name,
@@ -177,13 +188,14 @@ class SuperCarlSearcher(Searcher):
         text = inline_text
         if profile_text:
             text = f"{inline_text}\n\nProfile evidence:\n{profile_text}"
+        text = _safe_text(text)
 
         return SearchResult(
             url=profile_url,
             title=title,
             text=text,
             metadata={
-                "user_id": user.get("id"),
+                "user_id": user_id or None,
                 "linkedin_url": linkedin_url or None,
                 "supercarl_url": supercarl_url or None,
                 "social_proximity_score": user.get("social_proximity_score"),
