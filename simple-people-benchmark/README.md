@@ -49,6 +49,10 @@ uv run --env-file ../.env pbench --searchers supercarl --output runs/supercarl-p
 
 `PBENCH_SEARCHER_CONCURRENCY` limits concurrent SuperCarl search requests.
 `PBENCH_GRADING_CONCURRENCY` or `--grading-concurrency` limits concurrent OpenAI grading requests.
+When `--output` is set, the benchmark also writes a per-query checkpoint at
+`<output-stem>.checkpoint.jsonl`. If a run is interrupted, rerun the same command with
+`--resume` to skip completed queries and write the final output JSON when the remaining
+queries finish.
 
 For deterministic subset debugging, pin both `--sample` and `--seed`:
 

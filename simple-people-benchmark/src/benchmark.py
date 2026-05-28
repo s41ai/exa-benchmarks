@@ -38,6 +38,8 @@ class BenchmarkConfig:
     query_id: str | None = None
     num_results: int = 10
     output_file: str | None = None
+    checkpoint_file: str | None = None
+    resume: bool = False
     enrich_exa_contents: bool = False
     sample: int | None = None
     seed: int | None = None
@@ -129,6 +131,76 @@ async def enrich_results(results: list[SearchResult]) -> list[SearchResult]:
     return [SearchResult(r.url, r.title, contents.get(r.url, r.text), r.metadata) for r in results]
 
 
+def _default_checkpoint_file(output_file: str | None) -> str | None:
+    if not output_file:
+        return None
+    path = Path(output_file)
+    return str(path.with_name(f"{path.stem}.checkpoint.jsonl"))
+
+
+def _load_checkpoint(
+    checkpoint_file: str | None,
+    searcher_name: str,
+    query_ids: set[str],
+    allow_legacy_missing_searcher: bool = False,
+) -> dict[str, list[dict]]:
+    if not checkpoint_file:
+        return {}
+
+    path = Path(checkpoint_file)
+    if not path.exists():
+        return {}
+
+    completed: dict[str, list[dict]] = {}
+    with open(path) as f:
+        for line_number, line in enumerate(f, 1):
+            if not line.strip():
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                logger.warning("Skipping invalid checkpoint line %s in %s", line_number, path)
+                continue
+
+            record_searcher = record.get("searcher")
+            if record_searcher and record_searcher != searcher_name:
+                continue
+            if not record_searcher and not allow_legacy_missing_searcher:
+                continue
+
+            query_id = record.get("query_id")
+            grades = record.get("grades")
+            if query_id in query_ids and isinstance(grades, list):
+                completed[query_id] = grades
+
+    return completed
+
+
+def _append_checkpoint(
+    checkpoint_file: str | None,
+    searcher_name: str,
+    query: Query,
+    grades: list[dict],
+):
+    if not checkpoint_file:
+        return
+
+    path = Path(checkpoint_file)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    record = {
+        "searcher": searcher_name,
+        "query_id": query.query_id,
+        "text": query.text,
+        "result_count": len(grades),
+        "grades": grades,
+        "timestamp": datetime.now().isoformat(),
+    }
+    with open(path, "a") as f:
+        f.write(json.dumps(record, separators=(",", ":")))
+        f.write("\n")
+        f.flush()
+
+
 @dataclass
 class RunLog:
     run_id: str
@@ -175,16 +247,39 @@ class Benchmark:
         config: BenchmarkConfig,
         progress: Progress,
         task_id: TaskID,
+        checkpoint_file: str | None,
     ) -> list[dict]:
         grades = []
         semaphore = asyncio.Semaphore(config.searcher_concurrency)
+        checkpoint_lock = asyncio.Lock()
+        completed = (
+            _load_checkpoint(
+                checkpoint_file,
+                searcher.name,
+                {q.query_id for q in queries},
+                allow_legacy_missing_searcher=len(self.searchers) == 1,
+            )
+            if config.resume
+            else {}
+        )
+
+        for q in queries:
+            cached_grades = completed.get(q.query_id)
+            if cached_grades is not None:
+                grades.extend(cached_grades)
+                progress.advance(task_id)
 
         async def process(q: Query):
+            if q.query_id in completed:
+                return
             async with semaphore:
                 results = await searcher.search(q.text, config.num_results)
                 if config.enrich_exa_contents:
                     results = await enrich_results(results)
-                grades.extend(await self._grade(q, results))
+                query_grades = await self._grade(q, results)
+                grades.extend(query_grades)
+                async with checkpoint_lock:
+                    _append_checkpoint(checkpoint_file, searcher.name, q, query_grades)
                 progress.advance(task_id)
 
         await asyncio.gather(*[process(q) for q in queries])
@@ -205,6 +300,12 @@ class Benchmark:
             return {}
 
         run_id = str(uuid.uuid4())
+        checkpoint_file = config.checkpoint_file or _default_checkpoint_file(config.output_file)
+        if checkpoint_file and not config.resume:
+            checkpoint_path = Path(checkpoint_file)
+            checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+            checkpoint_path.write_text("")
+
         self._run_log = RunLog(
             run_id=run_id,
             timestamp=datetime.now().isoformat(),
@@ -213,6 +314,8 @@ class Benchmark:
                 "query_id": config.query_id,
                 "num_results": config.num_results,
                 "enrich_exa_contents": config.enrich_exa_contents,
+                "checkpoint_file": checkpoint_file,
+                "resume": config.resume,
                 "sample": config.sample,
                 "seed": config.seed,
                 "searcher_concurrency": config.searcher_concurrency,
@@ -228,6 +331,9 @@ class Benchmark:
         if config.query_id:
             console.print(f"  Query ID: {config.query_id}")
         console.print(f"  Exa enrichment: {'on' if config.enrich_exa_contents else 'off'}")
+        if checkpoint_file:
+            console.print(f"  Checkpoint: {checkpoint_file}")
+            console.print(f"  Resume: {'on' if config.resume else 'off'}")
         console.print(f"  Searcher concurrency: {config.searcher_concurrency}")
         console.print(f"  Grading concurrency: {config.grading_concurrency}")
         console.print()
@@ -249,7 +355,12 @@ class Benchmark:
 
             async def run_one(searcher: Searcher) -> tuple[str, list[dict]]:
                 grades = await self._run_searcher(
-                    searcher, queries, config, progress, tasks[searcher.name]
+                    searcher,
+                    queries,
+                    config,
+                    progress,
+                    tasks[searcher.name],
+                    checkpoint_file,
                 )
                 return searcher.name, grades
 
@@ -351,6 +462,16 @@ def main():
     parser.add_argument("--num-results", type=int, default=10, help="Results per query")
     parser.add_argument("--output", "-o", help="Output file for results JSON")
     parser.add_argument(
+        "--checkpoint",
+        help="JSONL file for per-query checkpoints "
+        "(default: <output-stem>.checkpoint.jsonl when --output is set)",
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Skip queries already present in the checkpoint file",
+    )
+    parser.add_argument(
         "--enrich-exa-contents", action="store_true", help="Fetch page contents via Exa API"
     )
     parser.add_argument(
@@ -390,6 +511,8 @@ def main():
         query_id=args.query_id,
         num_results=args.num_results,
         output_file=args.output,
+        checkpoint_file=args.checkpoint,
+        resume=args.resume,
         enrich_exa_contents=args.enrich_exa_contents,
         sample=args.sample,
         seed=args.seed,
