@@ -40,8 +40,9 @@ For full production runs, keep secrets in `../.env` and only pass non-secret kno
 `SUPERCARL_DELEGATE_USER_ID`.
 
 ```bash
-PBENCH_SEARCHER_CONCURRENCY=8 \
+PBENCH_SEARCHER_CONCURRENCY=6 \
 PBENCH_GRADING_CONCURRENCY=50 \
+SUPERCARL_BASE_URL=https://api.supercarl.ai \
 SUPERCARL_NETWORK_FILTER_MODE=ignore \
 SUPERCARL_INCLUDE_PROFILE_TEXT=true \
 uv run --env-file ../.env pbench --searchers supercarl --output runs/supercarl-prod-full.json
@@ -53,6 +54,25 @@ When `--output` is set, the benchmark also writes a per-query checkpoint at
 `<output-stem>.checkpoint.jsonl`. If a run is interrupted, rerun the same command with
 `--resume` to skip completed queries and write the final output JSON when the remaining
 queries finish.
+
+Reference full production run:
+
+| Searcher | R@1 | R@10 | Precision | Queries |
+|----------|-----|------|-----------|---------|
+| supercarl | 81.6% | 93.1% | 76.2% | 1400 |
+
+Recorded with:
+
+```bash
+PBENCH_SEARCHER_CONCURRENCY=6 \
+PBENCH_GRADING_CONCURRENCY=50 \
+SUPERCARL_BASE_URL=https://api.supercarl.ai \
+SUPERCARL_NETWORK_FILTER_MODE=ignore \
+SUPERCARL_INCLUDE_PROFILE_TEXT=true \
+uv run --env-file ../.env pbench --searchers supercarl \
+  --output runs/supercarl-prod-actual-full-20260528Tpost-r10-fixes.json \
+  --resume
+```
 
 For deterministic subset debugging, pin both `--sample` and `--seed`:
 

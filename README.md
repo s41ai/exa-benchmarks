@@ -44,7 +44,8 @@ See [webcode-benchmark/](webcode-benchmark/) for details and [blog post](https:/
 
 | Searcher | R@1 | R@10 | Precision | Queries |
 |----------|-----|------|-----------|---------|
-| exa | **72.0%** | **94.5%** | **63.3%** | 1399 |
+| supercarl | **81.6%** | 93.1% | **76.2%** | 1400 |
+| exa | 72.0% | **94.5%** | 63.3% | 1399 |
 | brave | 44.4% | 77.9% | 30.2% | 1373 |
 | parallel | 20.8% | 74.7% | 26.9% | 1387 |
 
@@ -121,6 +122,7 @@ uv sync
 
 PBENCH_SEARCHER_CONCURRENCY=8 \
 PBENCH_GRADING_CONCURRENCY=50 \
+SUPERCARL_BASE_URL=https://api.supercarl.ai \
 SUPERCARL_NETWORK_FILTER_MODE=ignore \
 SUPERCARL_INCLUDE_PROFILE_TEXT=true \
 uv run --env-file ../.env pbench --searchers supercarl --output runs/supercarl-prod-full.json
