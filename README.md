@@ -120,7 +120,7 @@ For a full production run, keep secrets in `../.env` and pass only non-secret co
 cd simple-people-benchmark
 uv sync
 
-PBENCH_SEARCHER_CONCURRENCY=8 \
+PBENCH_SEARCHER_CONCURRENCY=10 \
 PBENCH_GRADING_CONCURRENCY=50 \
 SUPERCARL_BASE_URL=https://api.supercarl.ai \
 SUPERCARL_NETWORK_FILTER_MODE=ignore \

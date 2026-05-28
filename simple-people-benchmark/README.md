@@ -40,7 +40,7 @@ For full production runs, keep secrets in `../.env` and only pass non-secret kno
 `SUPERCARL_DELEGATE_USER_ID`.
 
 ```bash
-PBENCH_SEARCHER_CONCURRENCY=6 \
+PBENCH_SEARCHER_CONCURRENCY=10 \
 PBENCH_GRADING_CONCURRENCY=50 \
 SUPERCARL_BASE_URL=https://api.supercarl.ai \
 SUPERCARL_NETWORK_FILTER_MODE=ignore \
@@ -64,13 +64,13 @@ Reference full production run:
 Recorded with:
 
 ```bash
-PBENCH_SEARCHER_CONCURRENCY=6 \
+PBENCH_SEARCHER_CONCURRENCY=10 \
 PBENCH_GRADING_CONCURRENCY=50 \
 SUPERCARL_BASE_URL=https://api.supercarl.ai \
 SUPERCARL_NETWORK_FILTER_MODE=ignore \
 SUPERCARL_INCLUDE_PROFILE_TEXT=true \
 uv run --env-file ../.env pbench --searchers supercarl \
-  --output runs/supercarl-prod-actual-full-20260528Tpost-r10-fixes.json \
+  --output runs/supercarl-prod-full.json \
   --resume
 ```
 
