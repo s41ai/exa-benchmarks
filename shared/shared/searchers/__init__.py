@@ -5,6 +5,7 @@ from .exa import ExaSearcher
 from .parallel import ParallelSearcher
 from .perplexity import PerplexitySearcher
 from .supercarl import SuperCarlSearcher
+from .supercarl_company import SuperCarlCompanySearcher
 from .tavily import TavilySearcher
 
 __all__ = [
@@ -15,6 +16,7 @@ __all__ = [
     "PerplexitySearcher",
     "SearchResult",
     "Searcher",
+    "SuperCarlCompanySearcher",
     "SuperCarlSearcher",
     "TavilySearcher",
 ]
