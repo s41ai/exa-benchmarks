@@ -27,8 +27,22 @@ SUPERCARL_BASE_URL=http://localhost:5050 \
 uv run --env-file ../.env pbench --searchers supercarl --query-id people_role_0001
 ```
 
-Optional richer grading context. This first uses inline `evidence_text` from
-`/api/v1/search/people`, then falls back to `/api/v1/profiles/:id/text` only if needed:
+The default Super Carl searcher uses the same public natural-language endpoint as the product:
+`POST /api/v2/search/people/query`. It sends `query` rather than the legacy `description` field;
+optional paging, network, delegate, and profile-text controls remain available.
+
+Select the legacy description endpoint only for a historical comparison or rollback:
+
+```bash
+SUPERCARL_SEARCH_MODE=legacy_description \
+uv run --env-file ../.env pbench --searchers supercarl --query-id people_role_0001
+```
+
+`legacy_description` continues to use `POST /api/v1/search/people`. The V2 endpoint can be
+overridden with `SUPERCARL_NATURAL_LANGUAGE_ENDPOINT` for a canary deployment.
+
+Optional richer grading context requests inline `evidence_text`, then falls back to
+`/api/v1/profiles/:id/text` only if needed:
 
 ```bash
 SUPERCARL_INCLUDE_PROFILE_TEXT=true \
@@ -43,7 +57,7 @@ For full production runs, keep secrets in `../.env` and only pass non-secret kno
 PBENCH_SEARCHER_CONCURRENCY=10 \
 PBENCH_GRADING_CONCURRENCY=50 \
 SUPERCARL_BASE_URL=https://api.supercarl.ai \
-SUPERCARL_NETWORK_FILTER_MODE=ignore \
+SUPERCARL_SEARCH_MODE=natural_language_v2 \
 SUPERCARL_INCLUDE_PROFILE_TEXT=true \
 uv run --env-file ../.env pbench --searchers supercarl --output runs/supercarl-prod-full.json
 ```
@@ -55,19 +69,13 @@ When `--output` is set, the benchmark also writes a per-query checkpoint at
 `--resume` to skip completed queries and write the final output JSON when the remaining
 queries finish.
 
-Reference full production run:
-
-| Searcher | R@1 | R@10 | Precision | Queries |
-|----------|-----|------|-----------|---------|
-| supercarl | 81.6% | 93.1% | 76.2% | 1400 |
-
-Recorded with:
+Full production run command:
 
 ```bash
 PBENCH_SEARCHER_CONCURRENCY=10 \
 PBENCH_GRADING_CONCURRENCY=50 \
 SUPERCARL_BASE_URL=https://api.supercarl.ai \
-SUPERCARL_NETWORK_FILTER_MODE=ignore \
+SUPERCARL_SEARCH_MODE=natural_language_v2 \
 SUPERCARL_INCLUDE_PROFILE_TEXT=true \
 uv run --env-file ../.env pbench --searchers supercarl \
   --output runs/supercarl-prod-full.json \
@@ -79,10 +87,15 @@ For deterministic subset debugging, pin both `--sample` and `--seed`:
 ```bash
 PBENCH_SEARCHER_CONCURRENCY=1 \
 PBENCH_GRADING_CONCURRENCY=5 \
-SUPERCARL_NETWORK_FILTER_MODE=ignore \
+SUPERCARL_SEARCH_MODE=natural_language_v2 \
 SUPERCARL_INCLUDE_PROFILE_TEXT=true \
 uv run --env-file ../.env pbench --searchers supercarl \
   --sample 50 \
-  --seed 20260527 \
-  --output runs/supercarl-prod-sample-50-seed-20260527.json
+  --seed 202608 \
+  --output runs/supercarl-prod-sample-50-seed-202608.json
 ```
+
+The checked-in
+`data/people/manifests/simple_people_search.sample-50.seed-202608.json` freezes the query IDs
+selected by `--sample 50 --seed 202608`, together with the source dataset hash. Omitting
+`SUPERCARL_NETWORK_FILTER_MODE` preserves the public V2 endpoint's product-default network boost.
